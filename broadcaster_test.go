@@ -2,6 +2,7 @@ package broadcaster
 
 import (
 	"log"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -48,4 +49,26 @@ func TestLateBroadcast(t *testing.T) {
 
 	<-done
 	<-done
+}
+
+func TestBroadcastWaitDone(t *testing.T) {
+	b := NewBroadcaster()
+
+	var counter atomic.Uint32
+
+	b.Go(func() {
+		log.Println("function 1 finished")
+		counter.Add(1)
+	})
+	b.Go(func() {
+		log.Println("function 2 finished")
+		counter.Add(1)
+	})
+
+	b.Broadcast()
+	b.Wait()
+
+	if counter.Load() != 2 {
+		t.Fatalf("Failed to wait for all functions to finish")
+	}
 }

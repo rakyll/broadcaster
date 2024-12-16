@@ -8,17 +8,15 @@ import (
 )
 
 type Broadcaster struct {
-	mu       *sync.Mutex
 	cond     *sync.Cond
 	signaled bool
+	wg       sync.WaitGroup
 }
 
 // NewBroadcaster creates a new broadcaster.
 func NewBroadcaster() *Broadcaster {
-	var mu sync.Mutex
 	return &Broadcaster{
-		mu:       &mu,
-		cond:     sync.NewCond(&mu),
+		cond:     sync.NewCond(&sync.Mutex{}),
 		signaled: false,
 	}
 }
@@ -27,14 +25,17 @@ func NewBroadcaster() *Broadcaster {
 // and runs the given function in a new
 // goroutine.
 func (b *Broadcaster) Go(fn func()) {
+	b.wg.Add(1)
 	go func() {
 		b.cond.L.Lock()
-		defer b.cond.L.Unlock()
 
 		for !b.signaled {
 			b.cond.Wait()
 		}
 		fn()
+
+		b.cond.L.Unlock()
+		b.wg.Done()
 	}()
 }
 
@@ -46,4 +47,9 @@ func (b *Broadcaster) Broadcast() {
 	b.cond.L.Unlock()
 
 	b.cond.Broadcast()
+}
+
+// Wait waits for all functions to finish.
+func (b *Broadcaster) Wait() {
+	b.wg.Wait()
 }
